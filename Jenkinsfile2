@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+    
+    environment {
+        COMPOSE_FILE = "docker-compose.yml"
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
+        DOCKERHUB_USERNAME = 'subrata055'
+        IMAGE_NAME = 'lofi-focus-hub'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Verify') {
+            steps {
+                sh '''
+                    docker version
+                    docker-compose version
+                '''
+            }
+        }
+        
+        // stage('Clean') {
+        //     steps {
+        //         sh 'sh dockerclean.sh'
+        //     }
+        // }
+        
+        // stage('Sonarqube Scan') {
+        //     steps {
+        //         script {
+        //             scannerHome = tool 'sonar-scanner'
+        //         }
+        //         withSonarQubeEnv('sonarqube-server') {
+        //             sh "${scannerHome}/bin/sonar-scanner -X"
+        //         }
+        //     }
+        // }
+        
+        // stage('Quality Gate') {
+        //     steps {
+        //         withSonarQubeEnv('sonarqube-server') {
+        //             waitForQualityGate abortPipeline: true
+        //         }
+        //     }
+        // }
+        
+        stage('Build') {
+            steps {
+                sh 'docker-compose build'
+                sh "docker tag ${COMPOSE_PROJECT_NAME:-lofi-focus-hub}_lofi-focus-hub:latest ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
+                sh "docker tag ${COMPOSE_PROJECT_NAME:-lofi-focus-hub}_lofi-focus-hub:latest ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest"
+            }
+        }
+        
+        stage('Login to DockerHub') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+            }
+        }
+        
+        stage('Push to DockerHub') {
+            steps {
+                sh "docker push ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
+                sh "docker push ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest"
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                sh 'docker-compose kill'
+                sh 'docker-compose up -d'
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Logout from DockerHub
+            sh 'docker logout'
+            // Clean up workspace
+            cleanWs()
+        }
+        success {
+            echo "Lo-Fi Focus Hub deployed successfully!"
+            echo "Docker image pushed to: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+        failure {
+            echo 'Pipeline failed. Check logs for details.'
+        }
+    }
+}
