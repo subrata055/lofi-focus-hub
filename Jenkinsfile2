@@ -2,6 +2,8 @@ pipeline {
     agent any
     
     environment {
+        // Explicitly set the project name to avoid Bash/Groovy syntax conflicts
+        COMPOSE_PROJECT_NAME = "lofi-focus-hub"
         COMPOSE_FILE = "docker-compose.yml"
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
         DOCKERHUB_USERNAME = 'subrata055'
@@ -14,41 +16,21 @@ pipeline {
             steps {
                 sh '''
                     docker version
-                    docker-compose version
+                    docker compose version
                 '''
             }
         }
         
-        // stage('Clean') {
-        //     steps {
-        //         sh 'sh dockerclean.sh'
-        //     }
-        // }
-        
-        // stage('Sonarqube Scan') {
-        //     steps {
-        //         script {
-        //             scannerHome = tool 'sonar-scanner'
-        //         }
-        //         withSonarQubeEnv('sonarqube-server') {
-        //             sh "${scannerHome}/bin/sonar-scanner -X"
-        //         }
-        //     }
-        // }
-        
-        // stage('Quality Gate') {
-        //     steps {
-        //         withSonarQubeEnv('sonarqube-server') {
-        //             waitForQualityGate abortPipeline: true
-        //         }
-        //     }
-        // }
-        
         stage('Build') {
             steps {
-                sh 'docker-compose build'
-                sh "docker tag ${COMPOSE_PROJECT_NAME:-lofi-focus-hub}_lofi-focus-hub:latest ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
-                sh "docker tag ${COMPOSE_PROJECT_NAME:-lofi-focus-hub}_lofi-focus-hub:latest ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest"
+                // FIX 1: Use 'docker compose' (no hyphen) for V2
+                sh 'docker compose build'
+                
+                // FIX 2: Fixed the variable interpolation. 
+                // Based on your logs, Docker V2 names images with hyphens, not underscores.
+                // We use the explicit COMPOSE_PROJECT_NAME variable defined above.
+                sh "docker tag ${COMPOSE_PROJECT_NAME}-${IMAGE_NAME}:latest ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
+                sh "docker tag ${COMPOSE_PROJECT_NAME}-${IMAGE_NAME}:latest ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:latest"
             }
         }
         
@@ -67,22 +49,21 @@ pipeline {
         
         stage('Deploy') {
             steps {
-                sh 'docker-compose kill'
-                sh 'docker-compose up -d'
+                // FIX 3: Pass UID/GID so the container runs as the 'jenkins' user.
+                // This prevents files created in the volume (like your DB) from being owned by root.
+                sh "docker compose down"
+                sh "UID=\$(id -u) GID=\$(id -g) docker compose up -d"
             }
         }
     }
     
     post {
         always {
-            // Logout from DockerHub
             sh 'docker logout'
-            // Clean up workspace
             cleanWs()
         }
         success {
             echo "Lo-Fi Focus Hub deployed successfully!"
-            echo "Docker image pushed to: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}"
         }
         failure {
             echo 'Pipeline failed. Check logs for details.'
