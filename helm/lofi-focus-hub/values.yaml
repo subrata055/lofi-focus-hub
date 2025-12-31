@@ -1,6 +1,6 @@
 # Default values for lofi-focus-hub.
 
-replicaCount: 1
+replicaCount: 2
 
 image:
   repository: subrata055/lofi-focus-hub
