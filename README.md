@@ -1,5 +1,7 @@
 # Lo-Fi Focus Hub
 
+Step 2: Complete the commit
+
 A minimalist Pomodoro timer web application with ambient vibes and session tracking.
 
 ## Features
@@ -69,3 +71,38 @@ The Docker setup includes volume mounting to persist your session data:
 - Sessions are stored in `./data/focus_sessions.db` on your host machine
 - Data persists even when containers are stopped/restarted
 - You can backup your sessions by copying the `data` folder
+
+## DockerHub Deployment
+
+The application is also available as a pre-built Docker image on DockerHub.
+
+### Pull and run from DockerHub:
+
+```bash
+# Pull the latest image
+docker pull subrata055/lofi-focus-hub:latest
+
+# Run with volume mounting for data persistence
+docker run -p 5000:5000 -v $(pwd)/data:/app/data subrata055/lofi-focus-hub:latest
+
+# Or use the production docker-compose file
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Jenkins CI/CD Pipeline
+
+The project includes two Jenkins pipeline files:
+
+- `Jenkinsfile` - Basic pipeline for local deployment
+- `Jenkinsfile2` - Extended pipeline that builds and pushes to DockerHub
+
+**Jenkins Setup Requirements:**
+1. Configure DockerHub credentials in Jenkins with ID: `dockerhub-credentials`
+2. Ensure Jenkins agent has Docker and docker-compose installed
+3. Configure SonarQube server (optional, currently commented out)
+
+**Pipeline Features:**
+- Automated Docker image building
+- Push to DockerHub with build number tagging
+- Automatic deployment after successful build
+- Proper cleanup and error handling
